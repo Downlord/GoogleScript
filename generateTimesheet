@@ -1,0 +1,117 @@
+  var FUS1=new Date().toString().substr(25,6)+':00';
+
+function listEvents(e) {
+
+  var calendar_name = "Worklog";
+  var calendar_name = e.parameter.calendar;
+  var myyear = e.parameter.year;
+  var mymonth = e.parameter.month;
+  var startDate = new Date(myyear, mymonth - 1, 1);
+  var endDate = new Date(myyear, mymonth, 1);
+  var Calendar = CalendarApp.getCalendarsByName(calendar_name);
+  var sheetName = "Timesheet " + "- " + mymonth + "." + myyear;
+
+  var events = Calendar[0].getEvents(startDate , endDate);
+
+  if (events[0]) {
+    var eventarray = new Array();
+    var line = new Array();
+    line.push('Datum');
+    line.push('Tag');
+    line.push('Stunden');
+    line.push('Tätigkeit');
+    line.push('Beschreibung');
+    eventarray.push(line);
+    
+    var i = 0;
+    var worktask="";
+    for (i = 0; i < events.length; i++) {
+      worktask="Tagesgeschäft, Puppet, MariaDB, Performance";      
+      if(events[i].isAllDayEvent()){
+        worktask=events[i].getTitle();
+      }else{
+        line = new Array();
+        line.push(Utilities.formatDate(events[i].getStartTime(), FUS1, "dd.MM.Y"));
+        line.push(Utilities.formatDate(events[i].getStartTime(), FUS1, "E"));
+        line.push( (events[i].getEndTime() - events[i].getStartTime()) / 3600000);
+        line.push(events[i].getTitle());
+        line.push(worktask);
+        eventarray.push(line);
+      }
+    }
+    line = new Array();
+    line.push('Summe:');
+    line.push('');
+    line.push('');
+    line.push('');
+    line.push('');
+    eventarray.push(line);    
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Timesheet"));
+    var destRange = sheet.getRange(15,2,eventarray.length,line.length);
+    destRange.setValues(eventarray);
+    sheet.getRange(eventarray.length+14,4).setFormula('=SUM(D16:D' + (15+eventarray.length-2)+ ')');
+    sheet.getRange(15, 2, 1, 5).setFontSize(13).setFontStyle("bold").setBackground('#eeeeee');
+    sheet.getRange(eventarray.length+14, 1, 1, 5).setFontSize(13).setFontStyle("bold").setBackground('#eeeeeee');    
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Rechnung"));
+    sheet.getRange("H12").setFormula('=DATE('+Utilities.formatDate(endDate, FUS1, "Y")+','+Utilities.formatDate(endDate, FUS1, "MM")+','+Utilities.formatDate(endDate, FUS1, "dd")+')');
+    sheet.getRange("C25").setFormula('Timesheet!D'+(15+eventarray.length-1));
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    ss.rename(Utilities.formatDate(endDate, FUS1, "Y")+"-"+Utilities.formatDate(endDate, FUS1, "MM")+"_Rechnung und Timesheet");
+  } else {
+    Browser.msgBox('nothing between ' + startDate + ' till ' + endDate);
+  }
+  
+  
+  var app = UiApp.getActiveApplication();
+  app.close();
+  return app;  
+}
+
+function workingHoursTool() {
+  var doc = SpreadsheetApp.getActiveSpreadsheet();
+  var app = UiApp.createApplication().setTitle('Export working hours');
+  // Create a grid with 3 text boxes and corresponding labels
+  var grid = app.createGrid(4, 2);
+  grid.setWidget(0, 0, app.createLabel('Kalender Name:'));
+  
+  var list = app.createListBox();
+  list.setName('calendar');
+  grid.setWidget(0, 1, list);
+  var calendars = CalendarApp.getAllCalendars();
+  for (var i = 0; i < calendars .length; i++) {
+    list.a
+    list.addItem(calendars[i].getName());
+    if(calendars[i].getName()=="Worklog") list.setSelectedIndex(i);
+  }
+
+  var d = new Date;
+  grid.setWidget(1, 0, app.createLabel('Jahr:'));
+  grid.setWidget(1, 1, app.createTextBox().setName('year').setValue(Utilities.formatDate(d, FUS1, "Y")));
+  grid.setWidget(2, 0, app.createLabel('Monat'));
+  grid.setWidget(2, 1, app.createTextBox().setName('month').setValue(Utilities.formatDate(d, FUS1, "M")));
+  
+  // Create a vertical panel..
+  var panel = app.createVerticalPanel();
+  
+  // ...and add the grid to the panel
+  panel.add(grid);
+  
+  // Create a button and click handler; pass in the grid object as a callback element and the handler as a click handler
+  // Identify the function b as the server click handler
+
+  var button = app.createButton('submit');
+  var handler = app.createServerClickHandler('listEvents');
+  handler.addCallbackElement(grid);
+  button.addClickHandler(handler);
+  
+  // Add the button to the panel and the panel to the application, then display the application app in the Spreadsheet doc
+  panel.add(button);
+  app.add(panel);
+  doc.show(app);
+}
+
+function onOpen() {   setMenus();   }
+function setMenus() {
+ var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var menuEntries = [{name: "Export from calendar", functionName: "workingHoursTool"}];  
+  ss.addMenu("Working Hours", menuEntries);  }  
